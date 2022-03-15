@@ -46,20 +46,30 @@ resource "aws_dynamodb_table" "dynamodb_table" {
 }
 
 resource "aws_cognito_user_pool" "main" {
-  name = "MyUserPool"
+  name                     = "MyUserPool"
   auto_verified_attributes = ["email"]
-  username_attributes = [ "email" ]
+  username_attributes      = ["email"]
   schema {
     attribute_data_type = "String"
     mutable             = true
     name                = "name"
     required            = true
+
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 256
+    }
   }
   schema {
     attribute_data_type = "String"
     mutable             = true
     name                = "email"
     required            = true
+
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 256
+    }
   }
 
   password_policy {
@@ -69,11 +79,20 @@ resource "aws_cognito_user_pool" "main" {
     require_symbols   = true
     require_uppercase = true
   }
-  mfa_configuration        = "OFF"
+  mfa_configuration = "OFF"
 
   lambda_config {
     post_confirmation = aws_lambda_function.create_order.arn
   }
+}
+
+
+resource "aws_cognito_user_pool_client" "client" {
+  name = "cognito-client"
+
+  user_pool_id        = aws_cognito_user_pool.main.id
+  generate_secret     = false
+  explicit_auth_flows = ["ADMIN_NO_SRP_AUTH"]
 }
 
 data "archive_file" "lambda_order" {
@@ -163,6 +182,28 @@ resource "aws_lambda_function" "delete_order" {
   role = aws_iam_role.lambda_exec.arn
 }
 
+
+resource "aws_lambda_function" "signup" {
+  function_name = "signUp"
+
+  s3_bucket = aws_s3_bucket.lambda_bucket.id
+  s3_key    = aws_s3_object.lambda_order.key
+
+  runtime = "nodejs12.x"
+  handler = "signUp.handler"
+
+  source_code_hash = data.archive_file.lambda_order.output_base64sha256
+
+  role = aws_iam_role.lambda_exec.arn
+
+
+  environment {
+    variables = {
+      user_pool_id = aws_cognito_user_pool.main.id
+    }
+  }
+}
+
 resource "aws_cloudwatch_log_group" "get_order" {
   name = "/aws/lambda/${aws_lambda_function.get_order.function_name}"
 
@@ -189,6 +230,12 @@ resource "aws_cloudwatch_log_group" "update_order" {
 
 resource "aws_cloudwatch_log_group" "delete_order" {
   name = "/aws/lambda/${aws_lambda_function.delete_order.function_name}"
+
+  retention_in_days = 30
+}
+
+resource "aws_cloudwatch_log_group" "signup" {
+  name = "/aws/lambda/${aws_lambda_function.signup.function_name}"
 
   retention_in_days = 30
 }
@@ -302,6 +349,15 @@ resource "aws_apigatewayv2_integration" "delete_order" {
   integration_method = "POST"
 }
 
+resource "aws_apigatewayv2_integration" "signup" {
+  api_id = aws_apigatewayv2_api.lambda.id
+
+  integration_uri    = aws_lambda_function.signup.invoke_arn
+  integration_type   = "AWS_PROXY"
+  integration_method = "POST"
+}
+
+
 
 resource "aws_apigatewayv2_route" "get_order" {
   api_id = aws_apigatewayv2_api.lambda.id
@@ -336,6 +392,13 @@ resource "aws_apigatewayv2_route" "delete_order" {
 
   route_key = "DELETE /delete_order"
   target    = "integrations/${aws_apigatewayv2_integration.delete_order.id}"
+}
+
+resource "aws_apigatewayv2_route" "signup" {
+  api_id = aws_apigatewayv2_api.lambda.id
+
+  route_key = "POST /signup"
+  target    = "integrations/${aws_apigatewayv2_integration.signup.id}"
 }
 
 resource "aws_cloudwatch_log_group" "api_gw" {
@@ -384,6 +447,15 @@ resource "aws_lambda_permission" "api_gw_delete_order" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.delete_order.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "api_gw_signup" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.signup.function_name
   principal     = "apigateway.amazonaws.com"
 
   source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
