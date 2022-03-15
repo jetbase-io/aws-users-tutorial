@@ -34,3 +34,5 @@ override.tf.json
 terraform.rc
 order.zip
 response.json
+order/node_modules
+order/package-lock.json

@@ -32,6 +32,50 @@ resource "aws_s3_bucket" "lambda_bucket" {
   force_destroy = true
 }
 
+resource "aws_dynamodb_table" "dynamodb_table" {
+  name         = "users"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "email"
+  attribute {
+    name = "email"
+    type = "S"
+  }
+  tags = {
+    environment = "dev"
+  }
+}
+
+resource "aws_cognito_user_pool" "main" {
+  name = "MyUserPool"
+  auto_verified_attributes = ["email"]
+  username_attributes = [ "email" ]
+  schema {
+    attribute_data_type = "String"
+    mutable             = true
+    name                = "name"
+    required            = true
+  }
+  schema {
+    attribute_data_type = "String"
+    mutable             = true
+    name                = "email"
+    required            = true
+  }
+
+  password_policy {
+    minimum_length    = "8"
+    require_lowercase = true
+    require_numbers   = true
+    require_symbols   = true
+    require_uppercase = true
+  }
+  mfa_configuration        = "OFF"
+
+  lambda_config {
+    post_confirmation = aws_lambda_function.create_order.arn
+  }
+}
+
 data "archive_file" "lambda_order" {
   type = "zip"
 
@@ -166,9 +210,26 @@ resource "aws_iam_role" "lambda_exec" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_policy" {
-  role       = aws_iam_role.lambda_exec.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+resource "aws_iam_role_policy" "lambda_policy" {
+  role = aws_iam_role.lambda_exec.name
+
+  policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [{
+      "Effect" : "Allow",
+      "Action" : [
+        "dynamodb:BatchGetItem",
+        "dynamodb:GetItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+        "dynamodb:BatchWriteItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem"
+      ],
+      "Resource" : "arn:aws:dynamodb:us-east-1:251702461421:table/users"
+      }
+    ]
+  })
 }
 
 resource "aws_apigatewayv2_api" "lambda" {

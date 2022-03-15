@@ -1,14 +1,16 @@
-module.exports.handler = async (event) => {
-  console.log("Event: ", event);
-  let responseMessage = "Hello, World!";
+const { dbFunctions } = require("./db");
+
+const getOrder = async (event) => {
+  const { email } = event.pathParameters;
+
+  const result = await dbFunctions.get(email);
 
   return {
     statusCode: 200,
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      message: responseMessage,
-    }),
+    body: JSON.stringify(result.Item),
   };
+};
+
+module.exports = {
+  handler: getOrder,
 };
