@@ -1,6 +1,6 @@
 const { dbFunctions } = require("./db");
 
-const getOrder = async (event) => {
+const getUser = async (event) => {
   const { email } = event.pathParameters;
 
   const result = await dbFunctions.get(email);
@@ -12,5 +12,5 @@ const getOrder = async (event) => {
 };
 
 module.exports = {
-  handler: getOrder,
+  handler: getUser,
 };

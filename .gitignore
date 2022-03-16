@@ -32,7 +32,7 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
-order.zip
+user.zip
 response.json
-order/node_modules
-order/package-lock.json
+user/node_modules
+user/package-lock.json

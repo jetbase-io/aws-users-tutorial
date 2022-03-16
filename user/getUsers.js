@@ -1,6 +1,6 @@
 const { dbFunctions } = require("./db");
 
-const getOrders = async () => {
+const getUsers = async () => {
   const result = await dbFunctions.getAll();
 
   return {
@@ -10,5 +10,5 @@ const getOrders = async () => {
 };
 
 module.exports = {
-  handler: getOrders,
+  handler: getUsers,
 };

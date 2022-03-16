@@ -82,7 +82,7 @@ resource "aws_cognito_user_pool" "main" {
   mfa_configuration = "OFF"
 
   lambda_config {
-    post_confirmation = aws_lambda_function.create_order.arn
+    post_confirmation = aws_lambda_function.post_confirmation.arn
   }
 }
 
@@ -95,89 +95,89 @@ resource "aws_cognito_user_pool_client" "client" {
   explicit_auth_flows = ["ADMIN_NO_SRP_AUTH"]
 }
 
-data "archive_file" "lambda_order" {
+data "archive_file" "lambda_user" {
   type = "zip"
 
-  source_dir  = "${path.module}/order"
-  output_path = "${path.module}/order.zip"
+  source_dir  = "${path.module}/user"
+  output_path = "${path.module}/user.zip"
 }
 
-resource "aws_s3_object" "lambda_order" {
+resource "aws_s3_object" "lambda_user" {
   bucket = aws_s3_bucket.lambda_bucket.id
 
-  key    = "order.zip"
-  source = data.archive_file.lambda_order.output_path
+  key    = "user.zip"
+  source = data.archive_file.lambda_user.output_path
 
-  etag = filemd5(data.archive_file.lambda_order.output_path)
+  etag = filemd5(data.archive_file.lambda_user.output_path)
 }
 
 
-resource "aws_lambda_function" "get_order" {
-  function_name = "getOrder"
+resource "aws_lambda_function" "get_user" {
+  function_name = "getUser"
 
   s3_bucket = aws_s3_bucket.lambda_bucket.id
-  s3_key    = aws_s3_object.lambda_order.key
+  s3_key    = aws_s3_object.lambda_user.key
 
   runtime = "nodejs12.x"
-  handler = "getOrder.handler"
+  handler = "getUser.handler"
 
-  source_code_hash = data.archive_file.lambda_order.output_base64sha256
+  source_code_hash = data.archive_file.lambda_user.output_base64sha256
 
   role = aws_iam_role.lambda_exec.arn
 }
 
-resource "aws_lambda_function" "get_orders" {
-  function_name = "getOrders"
+resource "aws_lambda_function" "get_users" {
+  function_name = "getUsers"
 
   s3_bucket = aws_s3_bucket.lambda_bucket.id
-  s3_key    = aws_s3_object.lambda_order.key
+  s3_key    = aws_s3_object.lambda_user.key
 
   runtime = "nodejs12.x"
-  handler = "getOrders.handler"
+  handler = "getUsers.handler"
 
-  source_code_hash = data.archive_file.lambda_order.output_base64sha256
+  source_code_hash = data.archive_file.lambda_user.output_base64sha256
 
   role = aws_iam_role.lambda_exec.arn
 }
 
-resource "aws_lambda_function" "create_order" {
-  function_name = "createOrder"
+resource "aws_lambda_function" "post_confirmation" {
+  function_name = "postConfirmation"
 
   s3_bucket = aws_s3_bucket.lambda_bucket.id
-  s3_key    = aws_s3_object.lambda_order.key
+  s3_key    = aws_s3_object.lambda_user.key
 
   runtime = "nodejs12.x"
-  handler = "createOrder.handler"
+  handler = "postConfirmation.handler"
 
-  source_code_hash = data.archive_file.lambda_order.output_base64sha256
+  source_code_hash = data.archive_file.lambda_user.output_base64sha256
 
   role = aws_iam_role.lambda_exec.arn
 }
 
-resource "aws_lambda_function" "update_order" {
-  function_name = "updateOrder"
+resource "aws_lambda_function" "update_user" {
+  function_name = "updateUser"
 
   s3_bucket = aws_s3_bucket.lambda_bucket.id
-  s3_key    = aws_s3_object.lambda_order.key
+  s3_key    = aws_s3_object.lambda_user.key
 
   runtime = "nodejs12.x"
-  handler = "updateOrder.handler"
+  handler = "updateUser.handler"
 
-  source_code_hash = data.archive_file.lambda_order.output_base64sha256
+  source_code_hash = data.archive_file.lambda_user.output_base64sha256
 
   role = aws_iam_role.lambda_exec.arn
 }
 
-resource "aws_lambda_function" "delete_order" {
-  function_name = "deleteOrder"
+resource "aws_lambda_function" "delete_user" {
+  function_name = "deleteUser"
 
   s3_bucket = aws_s3_bucket.lambda_bucket.id
-  s3_key    = aws_s3_object.lambda_order.key
+  s3_key    = aws_s3_object.lambda_user.key
 
   runtime = "nodejs12.x"
-  handler = "deleteOrder.handler"
+  handler = "deleteUser.handler"
 
-  source_code_hash = data.archive_file.lambda_order.output_base64sha256
+  source_code_hash = data.archive_file.lambda_user.output_base64sha256
 
   role = aws_iam_role.lambda_exec.arn
 }
@@ -187,12 +187,12 @@ resource "aws_lambda_function" "signup" {
   function_name = "signUp"
 
   s3_bucket = aws_s3_bucket.lambda_bucket.id
-  s3_key    = aws_s3_object.lambda_order.key
+  s3_key    = aws_s3_object.lambda_user.key
 
   runtime = "nodejs12.x"
   handler = "signUp.handler"
 
-  source_code_hash = data.archive_file.lambda_order.output_base64sha256
+  source_code_hash = data.archive_file.lambda_user.output_base64sha256
 
   role = aws_iam_role.lambda_exec.arn
 
@@ -200,42 +200,71 @@ resource "aws_lambda_function" "signup" {
   environment {
     variables = {
       user_pool_id = aws_cognito_user_pool.main.id
+      client_id    = aws_cognito_user_pool_client.client.id
     }
   }
 }
 
-resource "aws_cloudwatch_log_group" "get_order" {
-  name = "/aws/lambda/${aws_lambda_function.get_order.function_name}"
+resource "aws_lambda_function" "signin" {
+  function_name = "signIn"
+
+  s3_bucket = aws_s3_bucket.lambda_bucket.id
+  s3_key    = aws_s3_object.lambda_user.key
+
+  runtime = "nodejs12.x"
+  handler = "signIn.handler"
+
+  source_code_hash = data.archive_file.lambda_user.output_base64sha256
+
+  role = aws_iam_role.lambda_exec.arn
+
+
+  environment {
+    variables = {
+      user_pool_id = aws_cognito_user_pool.main.id
+      client_id    = aws_cognito_user_pool_client.client.id
+    }
+  }
+}
+
+resource "aws_cloudwatch_log_group" "get_user" {
+  name = "/aws/lambda/${aws_lambda_function.get_user.function_name}"
 
   retention_in_days = 30
 }
 
-resource "aws_cloudwatch_log_group" "get_orders" {
-  name = "/aws/lambda/${aws_lambda_function.get_orders.function_name}"
+resource "aws_cloudwatch_log_group" "get_users" {
+  name = "/aws/lambda/${aws_lambda_function.get_users.function_name}"
 
   retention_in_days = 30
 }
 
-resource "aws_cloudwatch_log_group" "create_order" {
-  name = "/aws/lambda/${aws_lambda_function.create_order.function_name}"
+resource "aws_cloudwatch_log_group" "post_confirmation" {
+  name = "/aws/lambda/${aws_lambda_function.post_confirmation.function_name}"
 
   retention_in_days = 30
 }
 
-resource "aws_cloudwatch_log_group" "update_order" {
-  name = "/aws/lambda/${aws_lambda_function.update_order.function_name}"
+resource "aws_cloudwatch_log_group" "update_user" {
+  name = "/aws/lambda/${aws_lambda_function.update_user.function_name}"
 
   retention_in_days = 30
 }
 
-resource "aws_cloudwatch_log_group" "delete_order" {
-  name = "/aws/lambda/${aws_lambda_function.delete_order.function_name}"
+resource "aws_cloudwatch_log_group" "delete_user" {
+  name = "/aws/lambda/${aws_lambda_function.delete_user.function_name}"
 
   retention_in_days = 30
 }
 
 resource "aws_cloudwatch_log_group" "signup" {
   name = "/aws/lambda/${aws_lambda_function.signup.function_name}"
+
+  retention_in_days = 30
+}
+
+resource "aws_cloudwatch_log_group" "signin" {
+  name = "/aws/lambda/${aws_lambda_function.signin.function_name}"
 
   retention_in_days = 30
 }
@@ -273,7 +302,26 @@ resource "aws_iam_role_policy" "lambda_policy" {
         "dynamodb:PutItem",
         "dynamodb:UpdateItem"
       ],
-      "Resource" : "arn:aws:dynamodb:us-east-1:251702461421:table/users"
+      "Resource" : "${aws_dynamodb_table.dynamodb_table.arn}"
+      }
+    ]
+  })
+}
+
+
+resource "aws_iam_role_policy" "cognito_policy" {
+  role = aws_iam_role.lambda_exec.name
+
+  policy = jsonencode({
+    "Version" : "2012-10-17",
+    "Statement" : [{
+      "Effect" : "Allow",
+      "Action" : [
+        "cognito-idp:AdminInitiateAuth",
+        "cognito-idp:AdminCreateUser",
+        "cognito-idp:AdminSetUserPassword"
+      ],
+      "Resource" : "${aws_cognito_user_pool.main.arn}"
       }
     ]
   })
@@ -309,42 +357,34 @@ resource "aws_apigatewayv2_stage" "lambda" {
   }
 }
 
-resource "aws_apigatewayv2_integration" "get_order" {
+resource "aws_apigatewayv2_integration" "get_user" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  integration_uri    = aws_lambda_function.get_order.invoke_arn
+  integration_uri    = aws_lambda_function.get_user.invoke_arn
   integration_type   = "AWS_PROXY"
   integration_method = "POST"
 }
 
-resource "aws_apigatewayv2_integration" "get_orders" {
+resource "aws_apigatewayv2_integration" "get_users" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  integration_uri    = aws_lambda_function.get_orders.invoke_arn
+  integration_uri    = aws_lambda_function.get_users.invoke_arn
   integration_type   = "AWS_PROXY"
   integration_method = "POST"
 }
 
-resource "aws_apigatewayv2_integration" "create_order" {
+resource "aws_apigatewayv2_integration" "update_user" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  integration_uri    = aws_lambda_function.create_order.invoke_arn
+  integration_uri    = aws_lambda_function.update_user.invoke_arn
   integration_type   = "AWS_PROXY"
   integration_method = "POST"
 }
 
-resource "aws_apigatewayv2_integration" "update_order" {
+resource "aws_apigatewayv2_integration" "delete_user" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  integration_uri    = aws_lambda_function.update_order.invoke_arn
-  integration_type   = "AWS_PROXY"
-  integration_method = "POST"
-}
-
-resource "aws_apigatewayv2_integration" "delete_order" {
-  api_id = aws_apigatewayv2_api.lambda.id
-
-  integration_uri    = aws_lambda_function.delete_order.invoke_arn
+  integration_uri    = aws_lambda_function.delete_user.invoke_arn
   integration_type   = "AWS_PROXY"
   integration_method = "POST"
 }
@@ -357,41 +397,40 @@ resource "aws_apigatewayv2_integration" "signup" {
   integration_method = "POST"
 }
 
-
-
-resource "aws_apigatewayv2_route" "get_order" {
+resource "aws_apigatewayv2_integration" "signin" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  route_key = "GET /get_order"
-  target    = "integrations/${aws_apigatewayv2_integration.get_order.id}"
+  integration_uri    = aws_lambda_function.signin.invoke_arn
+  integration_type   = "AWS_PROXY"
+  integration_method = "POST"
 }
 
-resource "aws_apigatewayv2_route" "get_orders" {
+resource "aws_apigatewayv2_route" "get_user" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  route_key = "GET /get_orders"
-  target    = "integrations/${aws_apigatewayv2_integration.get_orders.id}"
+  route_key = "GET /get_user"
+  target    = "integrations/${aws_apigatewayv2_integration.get_user.id}"
 }
 
-resource "aws_apigatewayv2_route" "create_order" {
+resource "aws_apigatewayv2_route" "get_users" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  route_key = "POST /create_order"
-  target    = "integrations/${aws_apigatewayv2_integration.create_order.id}"
+  route_key = "GET /get_users"
+  target    = "integrations/${aws_apigatewayv2_integration.get_users.id}"
 }
 
-resource "aws_apigatewayv2_route" "update_order" {
+resource "aws_apigatewayv2_route" "update_user" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  route_key = "PUT /update_order"
-  target    = "integrations/${aws_apigatewayv2_integration.update_order.id}"
+  route_key = "PUT /update_user"
+  target    = "integrations/${aws_apigatewayv2_integration.update_user.id}"
 }
 
-resource "aws_apigatewayv2_route" "delete_order" {
+resource "aws_apigatewayv2_route" "delete_user" {
   api_id = aws_apigatewayv2_api.lambda.id
 
-  route_key = "DELETE /delete_order"
-  target    = "integrations/${aws_apigatewayv2_integration.delete_order.id}"
+  route_key = "DELETE /delete_user"
+  target    = "integrations/${aws_apigatewayv2_integration.delete_user.id}"
 }
 
 resource "aws_apigatewayv2_route" "signup" {
@@ -401,52 +440,50 @@ resource "aws_apigatewayv2_route" "signup" {
   target    = "integrations/${aws_apigatewayv2_integration.signup.id}"
 }
 
+resource "aws_apigatewayv2_route" "signin" {
+  api_id = aws_apigatewayv2_api.lambda.id
+
+  route_key = "POST /signin"
+  target    = "integrations/${aws_apigatewayv2_integration.signin.id}"
+}
+
 resource "aws_cloudwatch_log_group" "api_gw" {
   name = "/aws/api_gw/${aws_apigatewayv2_api.lambda.name}"
 
   retention_in_days = 30
 }
 
-resource "aws_lambda_permission" "api_gw_get_order" {
+resource "aws_lambda_permission" "api_gw_get_user" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.get_order.function_name
+  function_name = aws_lambda_function.get_user.function_name
   principal     = "apigateway.amazonaws.com"
 
   source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
 }
 
-resource "aws_lambda_permission" "api_gw_get_orders" {
+resource "aws_lambda_permission" "api_gw_get_users" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.get_orders.function_name
+  function_name = aws_lambda_function.get_users.function_name
   principal     = "apigateway.amazonaws.com"
 
   source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
 }
 
-resource "aws_lambda_permission" "api_gw_create_order" {
+resource "aws_lambda_permission" "api_gw_update_user" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.create_order.function_name
+  function_name = aws_lambda_function.update_user.function_name
   principal     = "apigateway.amazonaws.com"
 
   source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
 }
 
-resource "aws_lambda_permission" "api_gw_update_order" {
+resource "aws_lambda_permission" "api_gw_delete_user" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.update_order.function_name
-  principal     = "apigateway.amazonaws.com"
-
-  source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
-}
-
-resource "aws_lambda_permission" "api_gw_delete_order" {
-  statement_id  = "AllowExecutionFromAPIGateway"
-  action        = "lambda:InvokeFunction"
-  function_name = aws_lambda_function.delete_order.function_name
+  function_name = aws_lambda_function.delete_user.function_name
   principal     = "apigateway.amazonaws.com"
 
   source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
@@ -459,4 +496,23 @@ resource "aws_lambda_permission" "api_gw_signup" {
   principal     = "apigateway.amazonaws.com"
 
   source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
+}
+
+resource "aws_lambda_permission" "api_gw_signin" {
+  statement_id  = "AllowExecutionFromAPIGateway"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.signin.function_name
+  principal     = "apigateway.amazonaws.com"
+
+  source_arn = "${aws_apigatewayv2_api.lambda.execution_arn}/*/*"
+}
+
+
+resource "aws_lambda_permission" "post_confirmation" {
+  statement_id  = "AllowExecutionFromCognito"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.post_confirmation.function_name
+  principal     = "cognito-idp.amazonaws.com"
+  source_arn    = aws_cognito_user_pool.main.arn
+  depends_on    = [aws_lambda_function.post_confirmation]
 }

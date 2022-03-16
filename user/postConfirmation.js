@@ -1,7 +1,8 @@
 const { v4 } = require("uuid");
 const { dbFunctions } = require("./db");
 
-const createOrder = async (event) => {
+const postConfirmation = async (event) => {
+  console.log("event", event)
   const { name, email } = event.request.userAttributes;
 
   let date = new Date();
@@ -17,5 +18,5 @@ const createOrder = async (event) => {
 };
 
 module.exports = {
-  handler: createOrder,
+  handler: postConfirmation,
 };
